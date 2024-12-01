@@ -17,6 +17,8 @@ int makeProduct(int min, int max) {
 struct IntegerBuffer {
     int id;
     int size;
+    int min;
+    int max;
     int in = 0;
     int out = 0;
     
@@ -25,7 +27,7 @@ struct IntegerBuffer {
     Semaphore* empty;
     Semaphore* full;
 
-    static IntegerBuffer* create(int id, int size) {
+    static IntegerBuffer* create(int id, int size, int min, int max) {
         std::string memoryName = "Buffer_" + std::to_string(id);
         
         int shm_fd = shm_open(memoryName.c_str(), O_CREAT | O_RDWR, 0666);
@@ -51,6 +53,8 @@ struct IntegerBuffer {
 
         buffer->id = id;
         buffer->size = size;
+        buffer->min = min;
+        buffer->max = max;
         buffer->body = (int*)(buffer + 1);
         buffer->in = 0;
         buffer->out = 0;
@@ -93,47 +97,45 @@ struct IntegerBuffer {
     }
 };
 
-void produce(IntegerBuffer* buffer, int min, int max) {
-    while (true) {
-        std::cout << "[PRODUCER] WAITING FOR EMPTY" << std::endl;
+void produce(int id, IntegerBuffer* buffer) {
+        std::cout << "[PRODUCER " << id <<"] WAITING FOR EMPTY" << std::endl << "--------------------------------------" << std::endl;
         buffer->empty->p();
-        std::cout << "[PRODUCER] WAITING FOR MUTEX" << std::endl;
+        std::cout << "[PRODUCER " << id <<"] WAITING FOR MUTEX" << std::endl << "--------------------------------------" << std::endl;
         buffer->mutex->p();
-        std::cout << "[PRODUCER] ENTERED CRITICAL SECTION" << std::endl;
-        int product = makeProduct(min, max);
+        std::cout << "[PRODUCER " << id <<"] ENTERED CRITICAL SECTION" << std::endl << "--------------------------------------" << std::endl;
+        int product = makeProduct(buffer->min, buffer->max);
         buffer->body[buffer->in] = product;
-        std::cout << "[PRODUCER] PRODUCED " << product << " AT INDEX " << buffer->in << std::endl;
+        std::cout << "[PRODUCER " << id <<"] PRODUCED " << product << " AT INDEX " << buffer->in << std::endl << "--------------------------------------" << std::endl;
         buffer->in = (buffer->in + 1) % buffer->size;
         buffer->mutex->v();
-        std::cout << "[PRODUCER] EXITED CRITICAL SECTION" << std::endl;
+        std::cout << "[PRODUCER " << id <<"] LEFT CRITICAL SECTION" << std::endl << "--------------------------------------" << std::endl;
         buffer->full->v();
-        std::cout << "[PRODUCER] SIGNALLED FULL" << std::endl;
+        std::cout << "[PRODUCER " << id <<"] SIGNALLED FULL" << std::endl << "--------------------------------------" << std::endl;
         sleep(1);
-    }
 }
 
-void consume(IntegerBuffer* buffer) {
+void consume(int id, IntegerBuffer* buffer) {
     while (true) {
-        std::cout << "[CONSUMER] WAITING FOR FULL" << std::endl;
+        std::cout << "[CONSUMER " << id <<"] WAITING FOR FULL" << std::endl << "--------------------------------------" << std::endl;
         buffer->full->p();
-        std::cout << "[CONSUMER] WAITING FOR MUTEX" << std::endl;
+        std::cout << "[CONSUMER " << id <<"] WAITING FOR MUTEX" << std::endl << "--------------------------------------" << std::endl;
         buffer->mutex->p();
-        std::cout << "[CONSUMER] ENTERED CRITICAL SECTION" << std::endl;
+        std::cout << "[CONSUMER " << id <<"] ENTERED CRITICAL SECTION" << std::endl << "--------------------------------------" << std::endl;
         int product = buffer->body[buffer->out];
-        std::cout << "[CONSUMER] CONSUMED " << product << " FROM INDEX " << buffer->out << std::endl;
+        std::cout << "[CONSUMER " << id <<"] CONSUMED " << product << " FROM INDEX " << buffer->out << std::endl << "--------------------------------------" << std::endl;
         buffer->out = (buffer->out + 1) % buffer->size;
         buffer->mutex->v();
-        std::cout << "[CONSUMER] EXITED CRITICAL SECTION" << std::endl;
+        std::cout << "[CONSUMER " << id <<"] LEFT CRITICAL SECTION" << std::endl << "--------------------------------------" << std::endl;
         buffer->empty->v();
-        std::cout << "[CONSUMER] SIGNALLED EMPTY" << std::endl;
+        std::cout << "[CONSUMER " << id <<"] SIGNALLED EMPTY" << std::endl << "--------------------------------------" << std::endl;
         sleep(1);
     }
 }
 
-void newProducer(IntegerBuffer* buffer, int min, int max) {
+void newProducer(int id, IntegerBuffer* buffer) {
     int created = fork();
     if (created == 0) {
-        produce(buffer, min, max);
+        while (true) { produce(id, buffer); }
         exit(0);
     } else if (created < 0) {
         perror("fork");
@@ -141,10 +143,34 @@ void newProducer(IntegerBuffer* buffer, int min, int max) {
     }
 }
 
-void newConsumer(IntegerBuffer* buffer) {
+void newEntrepreneur(int id, IntegerBuffer* buffer, IntegerBuffer* buffer2, IntegerBuffer* buffer3, IntegerBuffer* buffer4) {
     int created = fork();
     if (created == 0) {
-        consume(buffer);
+        int counter = 0;
+        while (true) {
+            if (counter == 0) {
+                produce(id, buffer);
+            } else if (counter == 1) {
+                produce(id, buffer2);
+            } else if (counter == 2) {
+                produce(id, buffer3);
+            } else if (counter == 3) {
+                produce(id, buffer4);
+            }
+            counter = (counter + 1) % 4;
+        }
+        exit(0);
+    } else if (created < 0) {
+        perror("fork");
+        exit(1);
+    }
+}
+
+void newConsumer(int id, IntegerBuffer* buffer) {
+    int created = fork();
+    if (created == 0) {
+        while (true) { consume(id, buffer); }
+        exit(0);
     } else if (created < 0) {
         perror("fork");
         exit(1);
@@ -152,9 +178,6 @@ void newConsumer(IntegerBuffer* buffer) {
 }
 
 int main(int argc, char *argv[]) {
-
-    std::cout << getpid() << std::endl;
-
     int bufferSize;
     
     if (argc != 2) {
@@ -169,36 +192,48 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    IntegerBuffer* buffer = IntegerBuffer::create(1, bufferSize);
+    IntegerBuffer* buffer = IntegerBuffer::create(1, bufferSize, 10, 19);
 
     if (!buffer) {
         std::cerr << "ERROR CREATING BUFFER" << std::endl;
         return 1;
     }
 
-    IntegerBuffer* buffer4 = IntegerBuffer::create(4, bufferSize);
+    IntegerBuffer* buffer2 = IntegerBuffer::create(2, bufferSize, 20, 29);
+
+    if (!buffer2) {
+        std::cerr << "ERROR CREATING BUFFER" << std::endl;
+        return 1;
+    }
+
+    IntegerBuffer* buffer3 = IntegerBuffer::create(3, bufferSize, 30, 39);
+
+    if (!buffer3) {
+        std::cerr << "ERROR CREATING BUFFER" << std::endl;
+        return 1;
+    }
+
+    IntegerBuffer* buffer4 = IntegerBuffer::create(4, bufferSize, 40, 49);
 
     if (!buffer4) {
         std::cerr << "ERROR CREATING BUFFER" << std::endl;
         return 1;
     }
 
-    newProducer(buffer, 10, 19);
-    newProducer(buffer4, 40, 49);
+    newProducer(1, buffer);
+    newProducer(2, buffer4);
+    newEntrepreneur(3, buffer, buffer2, buffer3, buffer4);
 
-    newConsumer(buffer);
-    newConsumer(buffer4);
+    newConsumer(1, buffer);
+    newConsumer(2, buffer2);
+    newConsumer(3, buffer3);
+    newConsumer(4, buffer4);
 
-    while(true) {
-        int status;
-        pid_t pid = wait(&status);
-        if (pid == -1) {
-            break;  
-        }
-        std::cout << "PROCESS " << pid << " ENDED" << std::endl;
-    }
+    while(true) {}
 
     IntegerBuffer::destroy(buffer);
+    IntegerBuffer::destroy(buffer2);
+    IntegerBuffer::destroy(buffer3);
     IntegerBuffer::destroy(buffer4);
 
     return 0;

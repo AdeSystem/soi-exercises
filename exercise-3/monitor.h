@@ -60,15 +60,6 @@ public:
 #endif
   }
 
-  int getValue() {
-	int value;
-	if (sem_getvalue(&sem, &value) != 0) {
-		throw "sem_getvalue: failed";
-	}
-	return value;
-  }
-  
-
 private:
 
 #ifdef _WIN32
