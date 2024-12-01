@@ -27,7 +27,7 @@ public:
 #ifdef _WIN32
 	sem = CreateSemaphore( NULL, value, 1, NULL );
 #else
-     if( sem_init( & sem, 0, value ) != 0 )
+     if( sem_init( & sem, 1, value ) != 0 )
        throw "sem_init: failed";
 #endif
   }
@@ -59,7 +59,6 @@ public:
        throw "sem_post: failed";
 #endif
   }
-  
 
 private:
 
