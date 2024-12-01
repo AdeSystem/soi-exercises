@@ -2,11 +2,10 @@
 #include <random>
 #include <string>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "monitor.h"
-
-#define MUL 1000000
 
 int makeProduct(int min, int max) {
     std::random_device rd;
@@ -135,6 +134,10 @@ void newProducer(IntegerBuffer* buffer, int min, int max) {
     int created = fork();
     if (created == 0) {
         produce(buffer, min, max);
+        exit(0);
+    } else if (created < 0) {
+        perror("fork");
+        exit(1);
     }
 }
 
@@ -142,10 +145,15 @@ void newConsumer(IntegerBuffer* buffer) {
     int created = fork();
     if (created == 0) {
         consume(buffer);
+    } else if (created < 0) {
+        perror("fork");
+        exit(1);
     }
 }
 
 int main(int argc, char *argv[]) {
+
+    std::cout << getpid() << std::endl;
 
     int bufferSize;
     
@@ -168,18 +176,30 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    newProducer(buffer, 1, 10);
+    IntegerBuffer* buffer4 = IntegerBuffer::create(4, bufferSize);
 
-    sleep(4);
+    if (!buffer4) {
+        std::cerr << "ERROR CREATING BUFFER" << std::endl;
+        return 1;
+    }
+
+    newProducer(buffer, 10, 19);
+    newProducer(buffer4, 40, 49);
 
     newConsumer(buffer);
-
+    newConsumer(buffer4);
 
     while(true) {
-        sleep(1);
+        int status;
+        pid_t pid = wait(&status);
+        if (pid == -1) {
+            break;  
+        }
+        std::cout << "PROCESS " << pid << " ENDED" << std::endl;
     }
 
     IntegerBuffer::destroy(buffer);
+    IntegerBuffer::destroy(buffer4);
 
     return 0;
 }
