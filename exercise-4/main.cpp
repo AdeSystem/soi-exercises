@@ -55,7 +55,7 @@ class IntegerBufferMonitor : public Monitor {
             delete[] body;
         }
 
-        void produce(int producent_id) {
+        void produce(int producer_id) {
             enter();
 
             if (counter == size) {
@@ -66,7 +66,7 @@ class IntegerBufferMonitor : public Monitor {
 
             body[in] = item;
 
-            std::cout << "[PRODUCER " << producent_id << "] PRODUCED " << item << " AT INDEX " << in << std::endl << getBufferState() << std::endl;
+            std::cout << "[PRODUCER " << producer_id << "] PRODUCED " << item << " AT INDEX " << in << std::endl << getBufferState() << std::endl;
             
             in = (in + 1) % size;
             counter++;
