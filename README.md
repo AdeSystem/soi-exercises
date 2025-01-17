@@ -11,13 +11,13 @@ Implementation of process priorities in Minix System along with system calls all
 Priority determines the amount of time that is allocated to a process on the processor.
 
 ### Exercise III
-Implementation of Producer - Consumer problem with semaphores.
+Implementation of Producer - Consumer problem with semaphores (version with forks).
 
 Four buffors for four consumers and three producers.
 First adds products to the first buffor, second one to the last one and the third one goes through all of them.
 
 ### Exercise IV
-Implementation of Producer - Consumer problem with monitors.
+Implementation of Producer - Consumer problem with monitors (version with threads).
 
 Four buffors for four consumers and three producers.
 First adds products to the first buffor, second one to the last one and the third one goes through all of them.
